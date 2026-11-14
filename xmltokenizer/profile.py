@@ -35,6 +35,9 @@ DEFAULTS: dict = {
     },
     "exclude_elements": [],
     "prefer_one_child_of": [],
+    # Id rules for `renumber` (see renumber.py): list of tables
+    # {elements, prefix, after_max, fix_duplicates, per_token}.
+    "id_rules": [],
     "break_attribute": {
         "bearers": [],
         "default_value": "yes",

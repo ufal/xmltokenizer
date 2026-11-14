@@ -35,8 +35,8 @@ def run(
     raw_de, ns_transform = deactivate(raw)
     metadata = extract(raw_de, profile, source_path=source_path)
 
-    w_counter = [0]
-    s_counter = [0]
+    from .renumber import id_counters
+    w_counter, s_counter = id_counters(raw_de, profile)
     for root in metadata.scope_roots:
         if not root.fold_plaintext.strip():
             continue  # EC-18: empty scope

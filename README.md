@@ -65,6 +65,15 @@ xmltokenize tokenize file.xml --output tokenized.xml
 
 Default backend is `naive`: pure-Python whitespace + punctuation tokenization. No external tool needed, no install beyond `pip install xmltokenizer`. The morphology fields are left as `_` (CoNLL-U "unset"), but the XML structure is correct.
 
+## Renumbering: ids where missing
+
+```sh
+xmltokenize renumber file.xml --profile teitok --output numbered.xml
+xmltokenize tokenize file.xml --profile teitok --renumber --output tokenized.xml
+```
+
+The profile's `id_rules` say which elements get which ids (the teitok profile: `w-N` tokens, `d-<n>-<k>` for `<dtok>`/`<m>` inside token n, `p-N`, `div-N`, `s-N`, `l-N`, `u-N`, `e-N` for `<pb>/<lb>/<cb>/<gap>/<deco>/<milestone>`, `ftn-N`, `an-N`, `app-N`, `ner-N`). Only elements without an id (none, empty, or `torenew`) get one, and an existing id is never changed, except that a second `<tok>` with a used id gets a new one (reported; references to it are not followed). Numbers follow document position within a rule and skip ids in use; tokens continue after the highest `w-N`. The only edits are inserted or filled `id` attributes; `tokenize` also starts its `w-`/`s-` counters after the ids the source already holds.
+
 ## Detokenizing
 
 xmltokenizer refuses input that is already tokenized. To retokenize such a file, strip the existing tokenization first:

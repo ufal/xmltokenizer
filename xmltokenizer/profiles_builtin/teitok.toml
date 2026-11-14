@@ -17,3 +17,66 @@ id_attr = "id"
 
 [s_attrs]
 id_attr = "id"
+
+# Ids for `xmltokenize renumber` (and `tokenize --renumber`): one counter per
+# rule, ids only where missing (empty or "torenew"); duplicate token ids are
+# renumbered. `per_token` rules number the children of a <tok>: d-<n>-<k>.
+[[id_rules]]
+elements = ["tok"]
+prefix = "w"
+after_max = true          # continue after the highest existing w-N
+fix_duplicates = true
+
+[[id_rules]]
+elements = ["dtok"]
+prefix = "d"
+per_token = true
+
+[[id_rules]]
+elements = ["m"]
+prefix = "m"
+per_token = true
+
+[[id_rules]]
+elements = ["p"]
+prefix = "p"
+
+[[id_rules]]
+elements = ["mtok"]
+prefix = "m"
+
+[[id_rules]]
+elements = ["div"]
+prefix = "div"
+
+[[id_rules]]
+elements = ["s"]
+prefix = "s"
+
+[[id_rules]]
+elements = ["l"]
+prefix = "l"
+
+[[id_rules]]
+elements = ["u"]
+prefix = "u"
+
+[[id_rules]]
+elements = ["pb", "lb", "cb", "gap", "deco", "milestone"]
+prefix = "e"
+
+[[id_rules]]
+elements = ["note"]
+prefix = "ftn"
+
+[[id_rules]]
+elements = ["anon"]
+prefix = "an"
+
+[[id_rules]]
+elements = ["app"]
+prefix = "app"
+
+[[id_rules]]
+elements = ["term", "placeName", "persName", "orgName", "name", "ner", "ne"]
+prefix = "ner"

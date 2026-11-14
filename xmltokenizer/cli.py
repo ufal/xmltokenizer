@@ -279,8 +279,8 @@ def cmd_tokenize(args: argparse.Namespace) -> int:
     raw_de, ns_transform = deactivate(raw)
     metadata = extract(raw_de, profile, source_path=args.input)
     from . import build_nlp_plaintext as _build_nlp
-    w_counter = [0]
-    s_counter = [0]
+    from .renumber import id_counters
+    w_counter, s_counter = id_counters(raw_de, profile)
     for root in metadata.scope_roots:
         if not root.fold_plaintext.strip():
             continue
@@ -300,6 +300,10 @@ def cmd_tokenize(args: argparse.Namespace) -> int:
         except ValidationError as e:
             print(f"validation error: {e}", file=sys.stderr)
             return 3
+    if args.renumber:
+        from .renumber import renumber
+        out, report = renumber(out, profile)
+        print(f"# renumber: {report.summary()}", file=sys.stderr)
     if args.output:
         Path(args.output).write_bytes(out)
     else:
@@ -350,6 +354,21 @@ def _build_backend(args: argparse.Namespace):
 # ---------------------------------------------------------------------
 
 
+def cmd_renumber(args: argparse.Namespace) -> int:
+    from .renumber import renumber
+
+    profile = _load_profile_from_args(args)
+    out, report = renumber(Path(args.input).read_bytes(), profile)
+    if args.output:
+        Path(args.output).write_bytes(out)
+    else:
+        sys.stdout.buffer.write(out)
+    print(f"renumber: {report.summary()}", file=sys.stderr)
+    for old, new in report.renumbered_duplicates[:20]:
+        print(f"renumber: duplicate id {old} -> {new} (references to it are not followed)", file=sys.stderr)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="xmltokenize",
@@ -359,6 +378,16 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     sub = p.add_subparsers(dest="cmd", required=True)
+
+    # --- renumber ---
+    p_rn = sub.add_parser(
+        "renumber",
+        help="Add ids where missing, per the profile's id_rules (never changes an existing id).",
+    )
+    p_rn.add_argument("input")
+    p_rn.add_argument("--output", help="Write the XML here (default: stdout)")
+    _add_profile_args(p_rn)
+    p_rn.set_defaults(func=cmd_renumber)
 
     # --- detokenize ---
     p_de = sub.add_parser(
@@ -467,6 +496,11 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p_tok.add_argument("--restore-xmlns", action="store_true")
+    p_tok.add_argument(
+        "--renumber",
+        action="store_true",
+        help="Afterwards add the ids the profile's id_rules call for (see `renumber`).",
+    )
     p_tok.add_argument(
         "--validate",
         action="store_true",
