@@ -5,6 +5,11 @@
 extends = "tei"
 name = "teitok"
 
+# <am>ꝑ</am><ex>per</ex>cid: the tagger reads "percid"; @form keeps what is
+# written ("ꝑcid"), @expan the expanded form.
+hidden_inline_elements = ["am"]
+expansion_elements = ["ex"]
+
 [tok_attrs]
 id_attr = "id"
 

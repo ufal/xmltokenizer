@@ -111,11 +111,18 @@ def run(raw: bytes, profile: dict, source_path: str = "<bytes>", *, tokenized: b
         events, profile, raw
     )
 
+    hidden_ranges = _compute_hidden_inline(events, profile, raw)
+    for cs, ce in hidden_ranges.items():
+        if cs not in skip_ranges:  # a choice loser already hides it
+            skip_ranges[cs] = ce
+            verbatim_payloads[cs] = raw[events[cs].byte_start : events[ce].byte_end]
+    hidden_starts = {cs for cs in hidden_ranges if skip_ranges[cs] == hidden_ranges[cs]}
+
     scope_roots: list[ScopeRoot] = []
     for s_idx, e_idx in scope_event_spans:
         root = _build_scope_root(
             raw, events, s_idx, e_idx, profile,
-            skip_ranges, verbatim_payloads,
+            skip_ranges, verbatim_payloads, hidden_starts,
         )
         root.tokenized = tokenized
         scope_roots.append(root)
@@ -396,6 +403,37 @@ def _compute_preference_decisions(
     return skip_ranges, verbatim_payloads
 
 
+def _compute_hidden_inline(
+    events: list[_Event], profile: dict, raw: bytes
+) -> dict[int, int]:
+    """Start event -> end event of every outermost element named in the
+    profile's `hidden_inline_elements` (its text stays out of the NLP text)."""
+    tags = set(profile.get("hidden_inline_elements", []))
+    if not tags:
+        return {}
+    out: dict[int, int] = {}
+    stack: list[int] = []
+    inside = 0  # depth within an already hidden element
+    for i, ev in enumerate(events):
+        if ev.kind != "start":
+            if ev.kind == "end" and stack:
+                start_i = stack.pop()
+                if start_i in out:
+                    out[start_i] = i
+                    inside -= 1
+            continue
+        hide = ev.data[0] in tags and not inside
+        if ev.empty:
+            if hide:
+                out[i] = i
+            continue
+        stack.append(i)
+        if hide:
+            out[i] = -1
+            inside += 1
+    return out
+
+
 def _pick_preferred_child(
     child_list: list[tuple[int, int]],
     events: list[_Event],
@@ -479,6 +517,7 @@ def _build_scope_root(
     profile: dict,
     skip_ranges: dict[int, int] | None = None,
     verbatim_payloads: dict[int, bytes] | None = None,
+    hidden_starts: set[int] | None = None,
 ) -> ScopeRoot:
     """Build a ScopeRoot for the element whose start event is events[start_idx]
     and whose end event is events[end_idx]."""
@@ -501,7 +540,7 @@ def _build_scope_root(
             payload = verbatim_payloads[i]
             ev = events[i]
             tag = ev.data[0] if ev.kind == "start" else "#skip"
-            builder.feed_verbatim_skip(ev, tag, payload)
+            builder.feed_verbatim_skip(ev, tag, payload, inline=i in (hidden_starts or ()))
             i = skip_ranges[i] + 1
             continue
         builder.feed(events[i])
@@ -758,7 +797,9 @@ class _ScopeBuilder:
         else:  # pragma: no cover
             raise AssertionError(f"unknown event kind {ev.kind!r}")
 
-    def feed_verbatim_skip(self, ev: "_Event", tag: str, raw_xml: bytes) -> None:
+    def feed_verbatim_skip(
+        self, ev: "_Event", tag: str, raw_xml: bytes, inline: bool = False
+    ) -> None:
         """Emit a verbatim record at the current fold offset, without
         adding the skipped element's CDATA to fold_plaintext.
 
@@ -785,7 +826,8 @@ class _ScopeBuilder:
                 priority=200,
                 parent=parent_id,
                 depth=self._depth(),
-                wrap_inside=parent_id,
+                wrap_inside=None if inline else parent_id,
+                inline=inline,
                 source_open_order=self._next_open_order(),
             )
         )

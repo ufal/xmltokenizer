@@ -51,6 +51,18 @@ DEFAULTS: dict = {
     # (so NLP sees a clean joined word); the original element is
     # re-emitted verbatim inside the resulting <tok>. Typical TEI: <pc>.
     "join_absorb_elements": [],
+    # Elements whose text is left out of the NLP text but kept in the output
+    # inside the token they sit in (TEITOK `<am>ꝑ</am><ex>per</ex>cid`: the
+    # tagger sees "percid"). Used with `expansion_elements`.
+    "hidden_inline_elements": [],
+    # Elements whose text is the editor's expansion: part of the NLP text (and
+    # of `@expan`), not of the written form. A token that holds hidden or
+    # expansion elements gets `@form` = written text (hidden elements in,
+    # expansions out) and `@expan` = the NLP form.
+    "expansion_elements": [],
+    # Name of the attribute that carries the expanded form (`expan`; CTP2
+    # settings use `fform`: `-O expansion_attr=fform`).
+    "expansion_attr": "expan",
     # Elements (with content) that, when their span coincides with a
     # `<tok>` span, should wrap FROM INSIDE the tok rather than from
     # outside. Implementation: these tags receive priority 30 at extract

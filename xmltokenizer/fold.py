@@ -189,6 +189,13 @@ def fold_scope(root: ScopeRoot, profile: Optional[dict] = None) -> str:
         # sibling <lb/> before <p> stays outside <p>).
         deferred: list[Record] = []
         drift_outside: list[Record] = []
+        # a hidden inline element (`<am>`) sits inside the token: what follows it
+        # in the source here (`<am/><ex/><am/>`) stays with it, in order
+        inline_soo = min(
+            (r.source_open_order for r in point_records.get(offset, [])
+             if r.inline and r.source_open_order is not None),
+            default=None,
+        )
         for rec in point_records.get(offset, []):
             target = rec.wrap_inside
             if target is None and rec.parent:
@@ -244,6 +251,10 @@ def fold_scope(root: ScopeRoot, profile: Optional[dict] = None) -> str:
                 and rec.tag not in tok_inner_anchors
                 and not rec.wrap_inside
                 and not rec.join_group
+                and not (
+                    inline_soo is not None and rec.source_open_order is not None
+                    and rec.source_open_order > inline_soo
+                )
                 and (rec.layer == "xml" or is_anchor_fallback)
             ):
                 drift_outside.append(rec)

@@ -301,8 +301,14 @@ def build_udpipe_layer(
     global_w_counter: list[int],
     global_s_counter: list[int],
     nlp_to_fold: Optional[list[int]] = None,
+    source_records: Optional[list[Record]] = None,
+    fold_plaintext: str = "",
 ) -> Layer:
     """Convert aligned tokens into the udpipe standoff layer.
+
+    `source_records` and `fold_plaintext` (the scope root's xml-layer records and
+    text) are only used for the profile's `hidden_inline_elements` and
+    `expansion_elements`: a token holding them gets `@form` (written) and `@expan`.
 
     `global_w_counter` and `global_s_counter` are single-element lists used
     as mutable counters so a multi-scope or multi-chunk run shares one
@@ -322,6 +328,15 @@ def build_udpipe_layer(
     fields_to_emit = tok_attrs_cfg.get(
         "fields_to_emit", ["lemma", "upos", "xpos", "feats", "ohead", "deprel"]
     )
+
+    expansion_attr = profile.get("expansion_attr", "expan")
+    written_form = _WrittenForms(profile, source_records or [], fold_plaintext)
+
+    def form_attrs(ctok: CTok, fold_start: int, fold_end: int) -> dict[str, str]:
+        written = written_form(fold_start, fold_end)
+        if written is None:
+            return {"_xt_form": ctok.form}
+        return {"form": written, expansion_attr: ctok.form}
 
     def to_fold(off: int) -> int:
         if nlp_to_fold is None:
@@ -382,7 +397,7 @@ def build_udpipe_layer(
                 surface_attrs = {
                     tok_id_attr: surface_tok_id,
                     "ord": ctok.id,
-                    "_xt_form": ctok.form,
+                    **form_attrs(ctok, fold_start, fold_end),
                 }
                 token_records.append(
                     Record(
@@ -432,7 +447,7 @@ def build_udpipe_layer(
                 attrs = {
                     tok_id_attr: tok_id,
                     "ord": ctok.id,
-                    "_xt_form": ctok.form,
+                    **form_attrs(ctok, fold_start, fold_end),
                 }
                 attrs.update(_build_tok_attrs(ctok, fields_to_emit))
                 token_records.append(
@@ -474,6 +489,67 @@ def build_udpipe_layer(
         records.extend(token_records)
 
     return Layer(name="udpipe", records=records, default_priority=50)
+
+
+class _WrittenForms:
+    """The written form of a token that holds expansions or hidden elements.
+
+    TEITOK `<am>ꝑ</am><ex>per</ex>cid`: the NLP text has "percid" (`<am>` is
+    hidden, `<ex>` is text), the written form is "ꝑcid": hidden elements in,
+    expansion elements out. Calling the object with a token's fold range gives
+    that form, or None when the token holds neither.
+    """
+
+    def __init__(self, profile: dict, records: list[Record], fold_plaintext: str) -> None:
+        import bisect
+        self._bisect = bisect
+        self._text = fold_plaintext
+        ex_tags = set(profile.get("expansion_elements", []))
+        hidden_tags = set(profile.get("hidden_inline_elements", []))
+        self._ex: list[tuple[int, int]] = sorted(
+            (r.start, r.end) for r in records
+            if r.kind == "element" and r.tag in ex_tags and r.start < r.end
+        )
+        self._ex_starts = [s for s, _ in self._ex]
+        self._hidden: dict[int, list[str]] = {}
+        if hidden_tags:
+            for r in records:
+                if r.kind == "verbatim" and r.inline and r.tag in hidden_tags:
+                    self._hidden.setdefault(r.offset, []).append(_xml_text(r.raw_xml))
+        self._hidden_offsets = sorted(self._hidden)
+
+    def __call__(self, start: int, end: int) -> Optional[str]:
+        if not self._ex and not self._hidden:
+            return None
+        bisect = self._bisect
+        # expansions overlapping [start, end) (one may start just before it;
+        # expansions do not nest)
+        first = max(0, bisect.bisect_left(self._ex_starts, start) - 1)
+        last = bisect.bisect_left(self._ex_starts, end)
+        ex = [
+            (max(s, start), min(e, end)) for s, e in self._ex[first:last]
+            if s < end and e > start
+        ]
+        lo = bisect.bisect_left(self._hidden_offsets, start)
+        hi = bisect.bisect_left(self._hidden_offsets, end)
+        hidden_at = {o: self._hidden[o] for o in self._hidden_offsets[lo:hi]}
+        if not ex and not hidden_at:
+            return None
+        out: list[str] = []
+        for p in range(start, end):
+            out.extend(hidden_at.get(p, ()))
+            if not any(s <= p < e for s, e in ex):
+                out.append(self._text[p])
+        return "".join(out)
+
+
+def _xml_text(raw_xml: str) -> str:
+    """The text content of a raw XML fragment (`<am>ꝑ</am>` -> `ꝑ`)."""
+    import xml.etree.ElementTree as ET
+    try:
+        return "".join(ET.fromstring(raw_xml).itertext())
+    except ET.ParseError:
+        return ""
 
 
 def _build_tok_attrs(

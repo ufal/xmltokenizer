@@ -107,7 +107,8 @@ def attach_conllu(
                 stacklevel=2,
             )
     layer = build_udpipe_layer(
-        aligned, profile, w_counter, s_counter, nlp_to_fold=nlp_to_fold
+        aligned, profile, w_counter, s_counter, nlp_to_fold=nlp_to_fold,
+        source_records=root.xml_layer.records, fold_plaintext=root.fold_plaintext,
     )
     root.udpipe_layer = layer
     return layer

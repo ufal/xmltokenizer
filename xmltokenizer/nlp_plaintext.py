@@ -128,6 +128,7 @@ def _collect_insertions(
                 around_verbatim
                 and rec.wrap_inside is None
                 and not rec.join_group
+                and not rec.inline
             ):
                 assert rec.offset is not None
                 add(rec.offset, "\n\n")

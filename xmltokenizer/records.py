@@ -67,6 +67,10 @@ class Record:
 
     # --- verbatim-only ---
     raw_xml: Optional[str] = None
+    # A verbatim whose text is hidden from the NLP text but belongs to the word
+    # it sits in (`<am>` of an `<am>ꝑ</am><ex>per</ex>cid` expansion): no
+    # barrier around it, and it stays inside the token.
+    inline: bool = False
 
     # --- source-order tie-breaker (populated by extract) ---
     # Monotonic counter incremented on every start event in the source
@@ -137,6 +141,7 @@ _DEFAULTS_TO_DROP = {
     "join_prefix_strip": "",
     "join_prefix_whitespace": "",
     "raw_xml": None,
+    "inline": False,
     "source_open_order": None,
 }
 
