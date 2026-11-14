@@ -280,7 +280,6 @@ def fold_scope(root: ScopeRoot, profile: Optional[dict] = None) -> str:
                         last_drift_soo is not None
                         and rec.source_open_order is not None
                         and rec.source_open_order < last_drift_soo
-                        and not atomic_closes_here
                     )
                 )
                 and not rec.wrap_inside
