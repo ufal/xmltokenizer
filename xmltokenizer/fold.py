@@ -205,6 +205,16 @@ def fold_scope(root: ScopeRoot, profile: Optional[dict] = None) -> str:
                 # not when its own parent opens here: `<del><gap/>…` keeps the
                 # gap inside the <del>, not in the token closing before it
                 and not any(r.id == rec.parent for r in opens_at.get(offset, []))
+                # nor when a source element (`<hi>Nero</hi><gap/>`) closes here
+                # before the anchor and not around it: the gap stays outside it
+                and not any(
+                    r.layer == "xml" and r.policy != "atomic"
+                    and r.depth >= rec.depth
+                    and r.source_open_order is not None
+                    and rec.source_open_order is not None
+                    and r.source_open_order < rec.source_open_order
+                    for r in closes_at.get(offset, [])
+                )
             ):
                 for tok in atomic_closes_here:
                     if _find_in_stack(current_stack, tok.id) is not None:
@@ -481,6 +491,20 @@ def _precompute_states(
                 states[rec.id].has_inner_xml = True
                 break
 
+    # Elements that start at or before an offset and are still open after it
+    # (the only candidates for "outer to rec and ends inside rec"). Swept once
+    # over the sorted starts: the open set is as large as the nesting depth, so
+    # scanning every earlier element per record (quadratic) is avoided.
+    _active_cache: dict[int, list[Record]] = {}
+    _open: list[Record] = []
+    _bi = 0
+    for _s in sorted({r.start for r in all_elements}):
+        while _bi < len(by_start) and by_start[_bi].start <= _s:
+            _open.append(by_start[_bi])
+            _bi += 1
+        _open = [o for o in _open if o.end > _s]
+        _active_cache[_s] = list(_open)
+
     cont_counter = 0
     for rec in records:
         if rec.kind != "element" or rec.policy == "atomic":
@@ -489,15 +513,11 @@ def _precompute_states(
         e_key = _sort_key(rec)
         # Candidates: any element with start <= e_start. Everything else
         # starts AFTER rec and so cannot be outer.
-        hi = bisect.bisect_right(starts, e_start)
         would_split = False
-        for i in range(hi):
-            other = by_start[i]
+        for other in _active_cache[e_start]:
             if other.id == rec.id or other.id in crossing_fallback:
                 continue
-            # Must overlap rec's interval (still active when rec starts).
-            if other.end <= e_start:
-                continue
+            # (open at e_start by construction: starts <= e_start, ends after it)
             # Must end before rec — otherwise it contains rec, no split.
             if other.end >= e_end:
                 continue
