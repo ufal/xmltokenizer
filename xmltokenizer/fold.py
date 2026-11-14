@@ -50,6 +50,7 @@ def fold_scope(root: ScopeRoot, profile: Optional[dict] = None) -> str:
     """
     profile = profile or {}
     tok_inner_anchors: set[str] = set(profile.get("tok_inner_anchors", []))
+    tok_inner_elements: set[str] = set(profile.get("tok_inner_elements", []))
 
     layers: list[Layer] = [root.xml_layer]
     if root.udpipe_layer is not None:
@@ -196,6 +197,25 @@ def fold_scope(root: ScopeRoot, profile: Optional[dict] = None) -> str:
              if r.inline and r.source_open_order is not None),
             default=None,
         )
+        # a tok-inner anchor (`<gap/>`) that comes before a drifting one in the
+        # source (`<gap/><lb/>word`) drifts with it: it stays before the <lb/>
+        last_drift_soo = max(
+            (r.source_open_order for r in point_records.get(offset, [])
+             if (atomic_opens_here or xml_opens_here)
+             and r.kind == "anchor" and r.layer == "xml"
+             and r.tag not in tok_inner_anchors
+             and not r.wrap_inside and not r.join_group
+             and r.source_open_order is not None),
+            default=None,
+        )
+        first_outer_soo = min(
+            (r.source_open_order for r in point_records.get(offset, [])
+             if r.kind == "anchor" and r.layer == "xml"
+             and r.tag not in tok_inner_anchors and r.tag not in ("#comment", "#pi")
+             and not r.wrap_inside and not r.join_group
+             and r.source_open_order is not None),
+            default=None,
+        )
         for rec in point_records.get(offset, []):
             target = rec.wrap_inside
             if target is None and rec.parent:
@@ -212,10 +232,16 @@ def fold_scope(root: ScopeRoot, profile: Optional[dict] = None) -> str:
                 # not when its own parent opens here: `<del><gap/>…` keeps the
                 # gap inside the <del>, not in the token closing before it
                 and not any(r.id == rec.parent for r in opens_at.get(offset, []))
+                # nor after a milestone that stays outside (`e<gap/><lb/><gap/>`)
+                and not (
+                    first_outer_soo is not None and rec.source_open_order is not None
+                    and rec.source_open_order > first_outer_soo
+                )
                 # nor when a source element (`<hi>Nero</hi><gap/>`) closes here
                 # before the anchor and not around it: the gap stays outside it
                 and not any(
                     r.layer == "xml" and r.policy != "atomic"
+                    and r.tag not in tok_inner_elements  # nests inside the tok
                     and r.depth >= rec.depth
                     and r.source_open_order is not None
                     and rec.source_open_order is not None
@@ -248,7 +274,15 @@ def fold_scope(root: ScopeRoot, profile: Optional[dict] = None) -> str:
             if (
                 rec.kind == "anchor"
                 and (atomic_opens_here or xml_opens_here)
-                and rec.tag not in tok_inner_anchors
+                and (
+                    rec.tag not in tok_inner_anchors
+                    or (
+                        last_drift_soo is not None
+                        and rec.source_open_order is not None
+                        and rec.source_open_order < last_drift_soo
+                        and not atomic_closes_here
+                    )
+                )
                 and not rec.wrap_inside
                 and not rec.join_group
                 and not (
@@ -517,6 +551,8 @@ def _precompute_states(
         _active_cache[_s] = list(_open)
 
     cont_counter = 0
+    # a source that already holds fragments (`@cont`) keeps its group ids
+    used_cont = {r.attrs.get("cont") for r in records if r.kind == "element"}
     for rec in records:
         if rec.kind != "element" or rec.policy == "atomic":
             continue
@@ -588,6 +624,8 @@ def _precompute_states(
             # Default: split with cont id.
             states[rec.id].will_split = True
             cont_counter += 1
+            while f"g{cont_counter}" in used_cont:
+                cont_counter += 1
             states[rec.id].cont_id = f"g{cont_counter}"
     return states, anchor_fallbacks
 
@@ -840,7 +878,8 @@ def _collapse_zero_width(records: list[Record], root: ScopeRoot) -> list[Record]
         return "".join(parts)
 
     return [
-        replace(rec, kind="anchor", start=None, end=None, offset=rec.start, raw_xml=render(rec))
+        replace(rec, kind="anchor", start=None, end=None, offset=rec.start, raw_xml=render(rec),
+                priority=200)  # like any other milestone: ordered by source position
         if rec.id in tops else rec
         for rec in kept
     ]

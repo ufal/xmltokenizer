@@ -9,6 +9,8 @@ name = "teitok"
 # written ("ꝑcid"), @expan the expanded form.
 hidden_inline_elements = ["am"]
 expansion_elements = ["ex"]
+# an <ex> that is a whole word (<am>⁊</am><ex>and</ex>) goes inside its token
+tok_inner_elements_add = ["ex"]
 
 [tok_attrs]
 id_attr = "id"
