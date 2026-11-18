@@ -45,6 +45,9 @@ test = [
 xmltokenize = "xmltokenizer.cli:main"
 
 [project.urls]
+Homepage = "https://github.com/ufal/xmltokenizer"
+Repository = "https://github.com/ufal/xmltokenizer"
+Issues = "https://github.com/ufal/xmltokenizer/issues"
 "Design docs" = "https://github.com/ufal/xmltokenizer/tree/main/dev"
 
 # ---------------------------------------------------------------------
