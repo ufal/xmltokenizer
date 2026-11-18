@@ -8,4 +8,4 @@ authors:
     given-names: Maarten
     affiliation: "Institute of Formal and Applied Linguistics, Charles University"
 license: MIT
-repository-code: "https://github.com/maartenpt/xmltokenizer"
+repository-code: "https://github.com/ufal/xmltokenizer"

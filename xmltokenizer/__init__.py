@@ -65,7 +65,7 @@ from .records import Layer, Record
 from .spans import Span, SpanReport, attach_spans, build_span_layer
 from .validate import ValidationError, run as validate
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 
 def attach_conllu(

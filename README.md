@@ -121,14 +121,14 @@ What it does:
 
 ## Install
 
-xmltokenizer is not on PyPI (yet). Install directly from the git repo:
+```sh
+pip install xmltokenizer
+```
+
+From a local clone (for development):
 
 ```sh
-# replace <repo-url> with the actual remote (e.g. https://github.com/maartenpt/xmltokenizer.git)
-pip install git+<repo-url>
-
-# or, from a local clone:
-git clone <repo-url>
+git clone https://github.com/ufal/xmltokenizer.git
 cd xmltokenizer
 pip install -e .
 ```

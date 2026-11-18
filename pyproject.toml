@@ -45,7 +45,7 @@ test = [
 xmltokenize = "xmltokenizer.cli:main"
 
 [project.urls]
-"Design docs" = "https://github.com/maartenpt/xmltokenizer/tree/main/dev"
+"Design docs" = "https://github.com/ufal/xmltokenizer/tree/main/dev"
 
 # ---------------------------------------------------------------------
 # Hatchling configuration
